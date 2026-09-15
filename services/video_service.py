@@ -1,15 +1,16 @@
-
 import os
 import uuid
 
 import ffmpeg
 from fastapi import HTTPException, UploadFile
 
+from settings import settings
+
 
 UPLOAD_VIDEO_DIR = "uploads/gallery/videos/original"
-OPTIMIZED_VIDEO_DIR = "uploads/gallery/videos/optimized"
+OPTIMIZED_VIDEO_DIR = settings.OPTIMIZED_VIDEO_DIR
 UPLOAD_CROP_DIR = "uploads/gallery/videos/crop"
-WATERMARK_VIDEO_DIR = "uploads/gallery/videos/watermark"
+WATERMARK_VIDEO_DIR = settings.VIDEO_WATERMARK_DIR
 HLS_VIDEO_DIR = "uploads/gallery/videos/hls"
 
 
@@ -99,14 +100,11 @@ def upload_video(
 
         return {
             "file_id": file_id,
-            "original_video_path":
-                original_video_path,
-            "original_video_url":
-                normalize_path(
-                    original_video_path
-                ),
-            "original_file_size":
-                original_file_size,
+            "original_video_path": original_video_path,
+            "original_video_url": normalize_path(
+                original_video_path
+            ),
+            "original_file_size": original_file_size,
             "optimized_video_url": None,
             "optimized_file_size": None,
             "watermarked_video_url": None,
@@ -276,8 +274,9 @@ def process_video_to_watermark(
         f"{video_id}_watermarked.mp4"
     )
 
+    # ویدیوی واترمارک‌شده داخل optimized ذخیره می‌شود
     watermarked_video_path = os.path.join(
-        WATERMARK_VIDEO_DIR,
+        OPTIMIZED_VIDEO_DIR,
         filename,
     )
 
@@ -289,6 +288,7 @@ def process_video_to_watermark(
 
         current_video = input_video
 
+        # اضافه کردن تصویر واترمارک
         if watermark_picture_path:
 
             watermark_image = ffmpeg.input(
@@ -312,10 +312,11 @@ def process_video_to_watermark(
                 shortest=1,
             )
 
+        # اضافه کردن متن واترمارک
         if (
             watermark_text
             and watermark_text.strip()
-        ): 
+        ):
 
             safe_watermark_text = (
                 watermark_text
@@ -450,6 +451,7 @@ def process_video(
     width: int = 640,
     height: int = 360,
 ):
+  
     crop_video_path = process_video_to_crop(
         original_video_path,
         video_id,
@@ -459,6 +461,7 @@ def process_video(
         height,
     )
 
+    
     optimized_video_path = (
         process_video_to_optimized(
             crop_video_path,
@@ -466,6 +469,7 @@ def process_video(
         )
     )
 
+   
     watermarked_video_path = (
         process_video_to_watermark(
             optimized_video_path,
@@ -489,14 +493,11 @@ def process_video(
     )
 
     return {
-        "crop_video_url":
-            crop_video_path,
+        "crop_video_url": crop_video_path,
 
-        "optimized_video_url":
-            optimized_video_path,
+        "optimized_video_url": optimized_video_path,
 
-        "optimized_file_size":
-            optimized_file_size,
+        "optimized_file_size": optimized_file_size,
 
         "watermarked_video_url":
             watermarked_video_path,
@@ -504,6 +505,5 @@ def process_video(
         "watermarked_file_size":
             watermarked_file_size,
 
-        "hls_url":
-            hls_url,
+        "hls_url": hls_url,
     }

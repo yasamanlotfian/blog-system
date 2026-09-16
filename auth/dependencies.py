@@ -1,3 +1,4 @@
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -6,7 +7,7 @@ import jwt
 
 from database import get_db
 from tables.user import User
-from auth.jwt import SECRET_KEY, ALGORITHM
+from settings import settings
 
 
 oauth2_scheme = OAuth2PasswordBearer(
@@ -52,8 +53,8 @@ def get_current_user(
 
         payload = jwt.decode(
             token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM]
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
         )
 
         user_id = payload.get("sub")

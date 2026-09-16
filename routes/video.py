@@ -22,6 +22,8 @@ from tables.video import Video
 
 from services.video_service import process_video
 
+from settings import settings
+
 
 HLS_VIDEO_DIR = "uploads/gallery/videos/hls"
 
@@ -39,6 +41,16 @@ router = APIRouter(
     prefix="/video",
     tags=["Video"],
 )
+
+
+def make_file_url(file_path):
+    if not file_path:
+        return None
+
+    return (
+        f"{settings.BASE_URL}/"
+        f"{file_path.replace(os.sep, '/')}"
+    )
 
 
 def process_video_background(
@@ -191,7 +203,9 @@ def create_video(
         )
 
         try:
-            content = watermark_picture.file.read()
+            content = (
+                watermark_picture.file.read()
+            )
 
             if not content:
                 raise HTTPException(
@@ -308,22 +322,28 @@ def create_video(
         "video_id": video.id,
         "title": video.title,
         "file_id": video.file_id,
-        "original_video_url":
-            video.original_video_url,
-        "optimized_video_url":
-            video.optimized_video_url,
-        "hls_url":
-            video.hls_url,
-        "watermark_text":
-            watermark_text,
-        "watermark_picture":
-            watermark_picture_path,
-        "watermark_type":
-            watermark_type,
-        "status":
-            video.status,
-        "is_active":
-            video.is_active,
+
+        "original_video_url": make_file_url(
+            video.original_video_url
+        ),
+
+        "optimized_video_url": make_file_url(
+            video.optimized_video_url
+        ),
+
+        "hls_url": make_file_url(
+            video.hls_url
+        ),
+
+        "watermark_text": watermark_text,
+
+        "watermark_picture": make_file_url(
+            watermark_picture_path
+        ),
+
+        "watermark_type": watermark_type,
+        "status": video.status,
+        "is_active": video.is_active,
     }
 
 
@@ -337,7 +357,39 @@ def get_videos(
         .all()
     )
 
-    return videos
+    return [
+        {
+            "id": video.id,
+            "title": video.title,
+
+            "original_video_url": make_file_url(
+                video.original_video_url
+            ),
+
+            "optimized_video_url": make_file_url(
+                video.optimized_video_url
+            ),
+
+            "crop_video_url": make_file_url(
+                video.crop_video_url
+            ),
+
+            "hls_url": make_file_url(
+                video.hls_url
+            ),
+
+            "original_file_size":
+                video.original_file_size,
+
+            "optimized_file_size":
+                video.optimized_file_size,
+
+            "mime_type": video.mime_type,
+            "is_active": video.is_active,
+            "status": video.status,
+        }
+        for video in videos
+    ]
 
 
 @router.get("/{video_id}")
@@ -357,7 +409,36 @@ def get_video(
             detail="Video not found",
         )
 
-    return video
+    return {
+        "id": video.id,
+        "title": video.title,
+
+        "original_video_url": make_file_url(
+            video.original_video_url
+        ),
+
+        "optimized_video_url": make_file_url(
+            video.optimized_video_url
+        ),
+
+        "crop_video_url": make_file_url(
+            video.crop_video_url
+        ),
+
+        "hls_url": make_file_url(
+            video.hls_url
+        ),
+
+        "original_file_size":
+            video.original_file_size,
+
+        "optimized_file_size":
+            video.optimized_file_size,
+
+        "mime_type": video.mime_type,
+        "is_active": video.is_active,
+        "status": video.status,
+    }
 
 
 @router.patch("/{video_id}")
@@ -422,8 +503,10 @@ def update_video_status(
     return {
         "message":
             "Video status updated successfully",
+
         "video_id":
             video.id,
+
         "is_active":
             video.is_active,
     }
@@ -503,6 +586,7 @@ def delete_video(
         return {
             "message":
                 "Video deleted successfully",
+
             "video_id":
                 video_id,
         }

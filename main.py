@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from routes import permission
 from database import Base, engine
@@ -28,6 +29,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads",
+)
 
 app.include_router(blog.router)
 app.include_router(gallery.router)

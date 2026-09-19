@@ -31,15 +31,9 @@ from settings import settings
 
 
 HLS_VIDEO_DIR = "uploads/gallery/videos/hls"
+WATERMARK_IMAGE_DIR = "uploads/gallery/videos/watermark"
 
-WATERMARK_IMAGE_DIR = (
-    "uploads/gallery/videos/watermark"
-)
-
-os.makedirs(
-    WATERMARK_IMAGE_DIR,
-    exist_ok=True,
-)
+os.makedirs(WATERMARK_IMAGE_DIR, exist_ok=True)
 
 
 router = APIRouter(
@@ -53,20 +47,8 @@ def make_file_url(file_path):
         return None
 
     return (
-        f"{settings.BASE_URL}/video/file/"
+        f"{settings.BASE_URL}/"
         f"{file_path.replace(os.sep, '/')}"
-    )
-
-
-def make_protected_video_url(
-    video_id: int,
-    video_type: str,
-):
-    return (
-        f"{settings.BASE_URL}"
-        f"/video/file/"
-        f"{video_id}/"
-        f"{video_type}"
     )
 
 
@@ -74,9 +56,7 @@ def make_protected_video_url(
 def get_video_file(
     video_id: int,
     video_type: str,
-    current_user: User = Depends(
-        get_current_user
-    ),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     video = (
@@ -112,9 +92,7 @@ def get_video_file(
             detail="Video file not available",
         )
 
-    file_path = os.path.abspath(
-        file_path
-    )
+    file_path = os.path.abspath(file_path)
 
     allowed_directories = [
         os.path.abspath(
@@ -150,16 +128,15 @@ def get_video_file(
 
     return FileResponse(
         file_path,
-        media_type=video.mime_type
-        or "video/mp4",
+        media_type=video.mime_type or "video/mp4",
     )
 
 
 def process_video_background(
-    video_id: int,
-    original_video_path: str,
-    watermark_picture_path: str | None,
-    watermark_text: str | None,
+    video_id,
+    original_video_path,
+    watermark_picture_path,
+    watermark_text,
 ):
     db = SessionLocal()
 
@@ -178,34 +155,33 @@ def process_video_background(
         db.commit()
 
         result = process_video(
-            original_video_path,
-            video_id,
-            watermark_picture_path,
-            watermark_text,
+            original_video_path=original_video_path,
+            video_id=video_id,
+            watermark_picture_path=watermark_picture_path,
+            watermark_text=watermark_text,
         )
 
-        video.crop_video_url = result[
+        video.crop_video_url = result.get(
             "crop_video_url"
-        ]
+        )
 
-        video.optimized_video_url = result[
+        video.optimized_video_url = result.get(
             "optimized_video_url"
-        ]
+        )
 
-        video.optimized_file_size = result[
+        video.optimized_file_size = result.get(
             "optimized_file_size"
-        ]
+        )
 
-        video.hls_url = result[
+        video.hls_url = result.get(
             "hls_url"
-        ]
+        )
 
         video.status = "done"
 
         db.commit()
 
-    except Exception as e:
-
+    except Exception:
         db.rollback()
 
         video = (
@@ -220,7 +196,6 @@ def process_video_background(
 
         print(
             "VIDEO BACKGROUND ERROR:",
-            e,
         )
 
     finally:
@@ -235,6 +210,7 @@ def create_video(
     watermark_text: str | None = Form(None),
     watermark_picture: UploadFile | None = File(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     file = (
         db.query(FileTable)
@@ -251,50 +227,32 @@ def create_video(
             detail="Video file not found",
         )
 
-    if (
-        watermark_text is not None
-        and not watermark_text.strip()
-    ):
-        watermark_text = None
+    original_video_path = file.original_file_url
 
-    allowed_watermark_types = {
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-    }
+    if not original_video_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Original video path not found",
+        )
 
     watermark_picture_path = None
 
-    if watermark_picture is not None:
-
-        if (
-            watermark_picture.content_type
-            not in allowed_watermark_types
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Watermark picture must be "
-                    "PNG, JPEG or WEBP"
-                ),
-            )
-
+    if watermark_picture:
         extension = os.path.splitext(
-            watermark_picture.filename or ""
+            watermark_picture.filename
         )[1].lower()
 
-        if extension not in {
+        allowed_extensions = {
             ".png",
             ".jpg",
             ".jpeg",
             ".webp",
-        }:
+        }
+
+        if extension not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "Invalid watermark picture "
-                    "extension"
-                ),
+                detail="Invalid watermark image",
             )
 
         watermark_filename = (
@@ -306,117 +264,36 @@ def create_video(
             watermark_filename,
         )
 
-        try:
-
-            content = (
-                watermark_picture.file.read()
+        with open(
+            watermark_picture_path,
+            "wb",
+        ) as buffer:
+            shutil.copyfileobj(
+                watermark_picture.file,
+                buffer,
             )
-
-            if not content:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Empty watermark picture",
-                )
-
-            with open(
-                watermark_picture_path,
-                "wb",
-            ) as buffer:
-                buffer.write(content)
-
-        except HTTPException:
-            raise
-
-        except Exception as e:
-
-            if os.path.exists(
-                watermark_picture_path
-            ):
-                os.remove(
-                    watermark_picture_path
-                )
-
-            print(
-                "WATERMARK PICTURE ERROR:",
-                e,
-            )
-
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    "Failed to save watermark picture"
-                ),
-            )
-
-    if (
-        watermark_text is None
-        and watermark_picture_path is None
-    ):
-        watermark_type = "none"
-
-    elif (
-        watermark_text is not None
-        and watermark_picture_path is None
-    ):
-        watermark_type = "text"
-
-    elif (
-        watermark_text is None
-        and watermark_picture_path is not None
-    ):
-        watermark_type = "picture"
-
-    else:
-        watermark_type = "text_and_picture"
 
     video = Video(
         title=title,
-        file_id=file.id,
-        original_video_url=file.original_file_url,
+        file_id=file_id,
+        original_video_url=original_video_path,
         optimized_video_url=None,
-        original_file_size=file.original_file_size,
+        crop_video_url=None,
+        hls_url=None,
+        original_file_size=(
+            os.path.getsize(original_video_path)
+            if os.path.isfile(original_video_path)
+            else None
+        ),
         optimized_file_size=None,
         mime_type=file.mime_type,
-        hls_url=None,
         is_active=1,
         status="pending",
     )
 
-    try:
-
-        db.add(video)
-
-        db.commit()
-
-        db.refresh(video)
-
-    except Exception as e:
-
-        db.rollback()
-
-        if (
-            watermark_picture_path
-            and os.path.exists(
-                watermark_picture_path
-            )
-        ):
-            os.remove(
-                watermark_picture_path
-            )
-
-        print(
-            "VIDEO CREATE ERROR:",
-            e,
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create video",
-        )
-
-    original_video_path = (
-        video.original_video_url
-    )
+    db.add(video)
+    db.commit()
+    db.refresh(video)
 
     background_tasks.add_task(
         process_video_background,
@@ -427,57 +304,22 @@ def create_video(
     )
 
     return {
-        "message": "Video created successfully",
-
-        "video_id": video.id,
-
+        "id": video.id,
         "title": video.title,
-
-        "file_id": video.file_id,
-
-        "original_video_url":
-            make_protected_video_url(
-                video.id,
-                "original",
-            ),
-
-        "optimized_video_url":
-            (
-                make_protected_video_url(
-                    video.id,
-                    "optimized",
-                )
-                if video.optimized_video_url
-                else None
-            ),
-
-        "hls_url":
-            make_file_url(
-                video.hls_url
-            ),
-
-        "watermark_text":
-            watermark_text,
-
-        "watermark_picture":
-            make_file_url(
-                watermark_picture_path
-            ),
-
-        "watermark_type":
-            watermark_type,
-
-        "status":
-            video.status,
-
-        "is_active":
-            video.is_active,
+        "original_video_url": make_file_url(
+            video.original_video_url
+        ),
+        "optimized_video_url": None,
+        "crop_video_url": None,
+        "hls_url": None,
+        "status": video.status,
     }
 
 
 @router.get("/")
 def get_videos(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     videos = (
         db.query(Video)
@@ -485,43 +327,24 @@ def get_videos(
         .all()
     )
 
-    return [
-        {
+    result = []
+
+    for video in videos:
+        result.append({
             "id": video.id,
-
             "title": video.title,
-
-            "original_video_url":
-                make_protected_video_url(
-                    video.id,
-                    "original",
-                ),
-
-            "optimized_video_url":
-                (
-                    make_protected_video_url(
-                        video.id,
-                        "optimized",
-                    )
-                    if video.optimized_video_url
-                    else None
-                ),
-
-            "crop_video_url":
-                (
-                    make_protected_video_url(
-                        video.id,
-                        "crop",
-                    )
-                    if video.crop_video_url
-                    else None
-                ),
-
-            "hls_url":
-                make_file_url(
-                    video.hls_url
-                ),
-
+            "original_video_url": make_file_url(
+                video.original_video_url
+            ),
+            "optimized_video_url": make_file_url(
+                video.optimized_video_url
+            ),
+            "crop_video_url": make_file_url(
+                video.crop_video_url
+            ),
+            "hls_url": make_file_url(
+                video.hls_url
+            ),
             "original_file_size":
                 video.original_file_size,
 
@@ -536,16 +359,16 @@ def get_videos(
 
             "status":
                 video.status,
-        }
+        })
 
-        for video in videos
-    ]
+    return result
 
 
 @router.get("/{video_id}")
 def get_video(
     video_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     video = (
         db.query(Video)
@@ -563,38 +386,18 @@ def get_video(
         "id": video.id,
 
         "title": video.title,
-
-        "original_video_url":
-            make_protected_video_url(
-                video.id,
-                "original",
-            ),
-
-        "optimized_video_url":
-            (
-                make_protected_video_url(
-                    video.id,
-                    "optimized",
-                )
-                if video.optimized_video_url
-                else None
-            ),
-
-        "crop_video_url":
-            (
-                make_protected_video_url(
-                    video.id,
-                    "crop",
-                )
-                if video.crop_video_url
-                else None
-            ),
-
-        "hls_url":
-            make_file_url(
-                video.hls_url
-            ),
-
+        "original_video_url": make_file_url(
+            video.original_video_url
+        ),
+        "optimized_video_url": make_file_url(
+            video.optimized_video_url
+        ),
+        "crop_video_url": make_file_url(
+            video.crop_video_url
+        ),
+        "hls_url": make_file_url(
+            video.hls_url
+        ),
         "original_file_size":
             video.original_file_size,
 

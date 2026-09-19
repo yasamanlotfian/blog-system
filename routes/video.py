@@ -13,14 +13,19 @@ from fastapi import (
     UploadFile,
 )
 
+from fastapi.responses import FileResponse
+
 from sqlalchemy.orm import Session
 
 from database import get_db, SessionLocal
 
 from tables.file import File as FileTable
 from tables.video import Video
+from tables.user import User
 
 from services.video_service import process_video
+
+from auth.dependencies import get_current_user
 
 from settings import settings
 
@@ -30,6 +35,7 @@ HLS_VIDEO_DIR = "uploads/gallery/videos/hls"
 WATERMARK_IMAGE_DIR = (
     "uploads/gallery/videos/watermark"
 )
+
 
 os.makedirs(
     WATERMARK_IMAGE_DIR,
@@ -43,13 +49,112 @@ router = APIRouter(
 )
 
 
-def make_file_url(file_path):
+def make_file_url(
+    file_path,
+):
     if not file_path:
         return None
 
     return (
         f"{settings.BASE_URL}/"
         f"{file_path.replace(os.sep, '/')}"
+    )
+
+
+def make_protected_video_url(
+    video_id: int,
+    video_type: str,
+):
+    return (
+        f"{settings.BASE_URL}"
+        f"/video/file/"
+        f"{video_id}/"
+        f"{video_type}"
+    )
+
+
+@router.get("/file/{video_id}/{video_type}")
+def get_video_file(
+    video_id: int,
+    video_type: str,
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(get_db),
+):
+    video = (
+        db.query(Video)
+        .filter(Video.id == video_id)
+        .first()
+    )
+
+    if not video:
+        raise HTTPException(
+            status_code=404,
+            detail="Video not found",
+        )
+
+    if video_type == "original":
+        file_path = video.original_video_url
+
+    elif video_type == "optimized":
+        file_path = video.optimized_video_url
+
+    elif video_type == "crop":
+        file_path = video.crop_video_url
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid video type",
+        )
+
+    if not file_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Video file not available",
+        )
+
+    file_path = os.path.abspath(
+        file_path
+    )
+
+    allowed_directories = [
+        os.path.abspath(
+            "uploads/gallery/videos/original"
+        ),
+        os.path.abspath(
+            settings.OPTIMIZED_VIDEO_DIR
+        ),
+        os.path.abspath(
+            "uploads/gallery/videos/crop"
+        ),
+    ]
+
+    is_allowed = any(
+        file_path.startswith(
+            directory + os.sep
+        )
+        or file_path == directory
+        for directory in allowed_directories
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+    if not os.path.isfile(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Video file not found",
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=video.mime_type
+        or "video/mp4",
     )
 
 
@@ -72,6 +177,7 @@ def process_video_background(
             return
 
         video.status = "processing"
+
         db.commit()
 
         result = process_video(
@@ -102,6 +208,7 @@ def process_video_background(
         db.commit()
 
     except Exception as e:
+
         db.rollback()
 
         video = (
@@ -203,6 +310,7 @@ def create_video(
         )
 
         try:
+
             content = (
                 watermark_picture.file.read()
             )
@@ -278,11 +386,15 @@ def create_video(
     )
 
     try:
+
         db.add(video)
+
         db.commit()
+
         db.refresh(video)
 
     except Exception as e:
+
         db.rollback()
 
         if (
@@ -319,31 +431,44 @@ def create_video(
 
     return {
         "message": "Video created successfully",
+
         "video_id": video.id,
+
         "title": video.title,
+
         "file_id": video.file_id,
 
-        "original_video_url": make_file_url(
-            video.original_video_url
-        ),
+        "original_video_url":
+            make_protected_video_url(
+                video.id,
+                "original",
+            ),
 
-        "optimized_video_url": make_file_url(
-            video.optimized_video_url
-        ),
+        "optimized_video_url":
+            make_protected_video_url(
+                video.id,
+                "optimized",
+            ),
 
-        "hls_url": make_file_url(
-            video.hls_url
-        ),
+        "hls_url":
+            make_file_url(
+                video.hls_url
+            ),
 
-        "watermark_text": watermark_text,
+        "watermark_text":
+            watermark_text,
 
-        "watermark_picture": make_file_url(
-            watermark_picture_path
-        ),
+        "watermark_picture":
+            None,
 
-        "watermark_type": watermark_type,
-        "status": video.status,
-        "is_active": video.is_active,
+        "watermark_type":
+            watermark_type,
+
+        "status":
+            video.status,
+
+        "is_active":
+            video.is_active,
     }
 
 
@@ -360,23 +485,39 @@ def get_videos(
     return [
         {
             "id": video.id,
+
             "title": video.title,
 
-            "original_video_url": make_file_url(
-                video.original_video_url
-            ),
+            "original_video_url":
+                make_protected_video_url(
+                    video.id,
+                    "original",
+                ),
 
-            "optimized_video_url": make_file_url(
-                video.optimized_video_url
-            ),
+            "optimized_video_url":
+                (
+                    make_protected_video_url(
+                        video.id,
+                        "optimized",
+                    )
+                    if video.optimized_video_url
+                    else None
+                ),
 
-            "crop_video_url": make_file_url(
-                video.crop_video_url
-            ),
+            "crop_video_url":
+                (
+                    make_protected_video_url(
+                        video.id,
+                        "crop",
+                    )
+                    if video.crop_video_url
+                    else None
+                ),
 
-            "hls_url": make_file_url(
-                video.hls_url
-            ),
+            "hls_url":
+                make_file_url(
+                    video.hls_url
+                ),
 
             "original_file_size":
                 video.original_file_size,
@@ -384,9 +525,14 @@ def get_videos(
             "optimized_file_size":
                 video.optimized_file_size,
 
-            "mime_type": video.mime_type,
-            "is_active": video.is_active,
-            "status": video.status,
+            "mime_type":
+                video.mime_type,
+
+            "is_active":
+                video.is_active,
+
+            "status":
+                video.status,
         }
         for video in videos
     ]
@@ -411,23 +557,39 @@ def get_video(
 
     return {
         "id": video.id,
+
         "title": video.title,
 
-        "original_video_url": make_file_url(
-            video.original_video_url
-        ),
+        "original_video_url":
+            make_protected_video_url(
+                video.id,
+                "original",
+            ),
 
-        "optimized_video_url": make_file_url(
-            video.optimized_video_url
-        ),
+        "optimized_video_url":
+            (
+                make_protected_video_url(
+                    video.id,
+                    "optimized",
+                )
+                if video.optimized_video_url
+                else None
+            ),
 
-        "crop_video_url": make_file_url(
-            video.crop_video_url
-        ),
+        "crop_video_url":
+            (
+                make_protected_video_url(
+                    video.id,
+                    "crop",
+                )
+                if video.crop_video_url
+                else None
+            ),
 
-        "hls_url": make_file_url(
-            video.hls_url
-        ),
+        "hls_url":
+            make_file_url(
+                video.hls_url
+            ),
 
         "original_file_size":
             video.original_file_size,
@@ -435,9 +597,14 @@ def get_video(
         "optimized_file_size":
             video.optimized_file_size,
 
-        "mime_type": video.mime_type,
-        "is_active": video.is_active,
-        "status": video.status,
+        "mime_type":
+            video.mime_type,
+
+        "is_active":
+            video.is_active,
+
+        "status":
+            video.status,
     }
 
 
@@ -462,12 +629,18 @@ def update_video(
     video.title = title
 
     db.commit()
+
     db.refresh(video)
 
     return {
-        "message": "Video updated successfully",
-        "video_id": video.id,
-        "title": video.title,
+        "message":
+            "Video updated successfully",
+
+        "video_id":
+            video.id,
+
+        "title":
+            video.title,
     }
 
 
@@ -498,6 +671,7 @@ def update_video_status(
     video.is_active = is_active
 
     db.commit()
+
     db.refresh(video)
 
     return {
@@ -547,21 +721,28 @@ def delete_video(
     )
 
     try:
+
         if (
             original_path
-            and os.path.exists(original_path)
+            and os.path.exists(
+                original_path
+            )
         ):
             os.remove(original_path)
 
         if (
             optimized_path
-            and os.path.exists(optimized_path)
+            and os.path.exists(
+                optimized_path
+            )
         ):
             os.remove(optimized_path)
 
         if (
             crop_path
-            and os.path.exists(crop_path)
+            and os.path.exists(
+                crop_path
+            )
         ):
             os.remove(crop_path)
 
@@ -577,6 +758,7 @@ def delete_video(
         )
 
         db.delete(video)
+
         db.commit()
 
         if file:
@@ -592,6 +774,7 @@ def delete_video(
         }
 
     except Exception as e:
+
         db.rollback()
 
         print(

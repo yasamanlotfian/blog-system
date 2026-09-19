@@ -36,7 +36,6 @@ WATERMARK_IMAGE_DIR = (
     "uploads/gallery/videos/watermark"
 )
 
-
 os.makedirs(
     WATERMARK_IMAGE_DIR,
     exist_ok=True,
@@ -49,14 +48,12 @@ router = APIRouter(
 )
 
 
-def make_file_url(
-    file_path,
-):
+def make_file_url(file_path):
     if not file_path:
         return None
 
     return (
-        f"{settings.BASE_URL}/"
+        f"{settings.BASE_URL}/video/file/"
         f"{file_path.replace(os.sep, '/')}"
     )
 
@@ -445,9 +442,13 @@ def create_video(
             ),
 
         "optimized_video_url":
-            make_protected_video_url(
-                video.id,
-                "optimized",
+            (
+                make_protected_video_url(
+                    video.id,
+                    "optimized",
+                )
+                if video.optimized_video_url
+                else None
             ),
 
         "hls_url":
@@ -459,7 +460,9 @@ def create_video(
             watermark_text,
 
         "watermark_picture":
-            None,
+            make_file_url(
+                watermark_picture_path
+            ),
 
         "watermark_type":
             watermark_type,
@@ -534,6 +537,7 @@ def get_videos(
             "status":
                 video.status,
         }
+
         for video in videos
     ]
 
@@ -763,6 +767,7 @@ def delete_video(
 
         if file:
             db.delete(file)
+
             db.commit()
 
         return {

@@ -1,5 +1,11 @@
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Response
+)
+
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
@@ -12,6 +18,8 @@ from auth.jwt import create_access_token
 from auth.dependencies import (
     permission_required
 )
+
+from settings import settings
 
 
 router = APIRouter(
@@ -34,7 +42,7 @@ def register(
     user: UserCreate,
     db: Session = Depends(get_db)
 ):
-    
+
     username_exists = (
         db.query(User)
         .filter(User.username == user.username)
@@ -78,6 +86,7 @@ def register(
 
 @router.post("/login")
 def login(
+    response: Response,
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -110,11 +119,22 @@ def login(
         }
     )
 
+   
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.JWT_EXPIRE_MINUTES * 60
+    )
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "role": db_user.role
     }
+
 
 @router.get(
     "/",
@@ -228,7 +248,6 @@ def update_user(
             detail="User not found"
         )
 
-   
     username_exists = (
         db.query(User)
         .filter(
@@ -243,7 +262,7 @@ def update_user(
             status_code=400,
             detail="Username already exists"
         )
-    
+
     email_exists = (
         db.query(User)
         .filter(

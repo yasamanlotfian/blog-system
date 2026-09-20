@@ -91,34 +91,6 @@ def get_original_video(
     )
 
 
-@app.get(
-    "/uploads/gallery/videos/crop/{filename}"
-)
-def get_crop_video(
-    filename: str,
-    current_user: User = Depends(get_current_user),
-):
-    return get_protected_video(
-        "uploads/gallery/videos/crop",
-        filename,
-        "video/mp4",
-    )
-
-
-@app.get(
-    "/uploads/gallery/videos/optimized/{filename}"
-)
-def get_optimized_video(
-    filename: str,
-    current_user: User = Depends(get_current_user),
-):
-    return get_protected_video(
-        settings.OPTIMIZED_VIDEO_DIR,
-        filename,
-        "video/mp4",
-    )
-
-
 app.include_router(blog.router)
 
 app.include_router(gallery.router)

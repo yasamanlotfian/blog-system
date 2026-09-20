@@ -56,7 +56,6 @@ def make_file_url(file_path):
 def get_video_file(
     video_id: int,
     video_type: str,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     video = (
@@ -209,8 +208,7 @@ def create_video(
     file_id: int = Form(...),
     watermark_text: str | None = Form(None),
     watermark_picture: UploadFile | None = File(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+     db: Session = Depends(get_db),
 ):
     file = (
         db.query(FileTable)
@@ -319,7 +317,6 @@ def create_video(
 @router.get("/")
 def get_videos(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     videos = (
         db.query(Video)
@@ -368,7 +365,6 @@ def get_videos(
 def get_video(
     video_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     video = (
         db.query(Video)

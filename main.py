@@ -1,5 +1,6 @@
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import FileResponse
+import os
 
 from database import Base, engine
 
@@ -27,6 +28,8 @@ from routes import (
     video
 )
 
+from auth.dependencies import get_current_user
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -36,6 +39,42 @@ app = FastAPI(
     description="Blog management API for Hair Salon Booking System",
     version="1.0.0"
 )
+
+
+@app.get("/uploads/gallery/videos/original/{filename}")
+def get_original_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    video_directory = os.path.abspath(
+        "uploads/gallery/videos/original"
+    )
+
+    file_path = os.path.abspath(
+        os.path.join(
+            video_directory,
+            filename
+        )
+    )
+
+    if not file_path.startswith(
+        video_directory + os.sep
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+
+    if not os.path.isfile(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Video file not found"
+        )
+
+    return FileResponse(
+        file_path,
+        media_type="video/mp4"
+    )
 
 
 app.include_router(blog.router)

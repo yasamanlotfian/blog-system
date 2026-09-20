@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import FileResponse
 import os
@@ -29,6 +30,7 @@ from routes import (
 )
 
 from auth.dependencies import get_current_user
+from settings import settings
 
 
 Base.metadata.create_all(bind=engine)
@@ -41,14 +43,12 @@ app = FastAPI(
 )
 
 
-@app.get("/uploads/gallery/videos/original/{filename}")
-def get_original_video(
+def get_protected_video(
+    directory: str,
     filename: str,
-    current_user: User = Depends(get_current_user),
+    media_type: str = "video/mp4",
 ):
-    video_directory = os.path.abspath(
-        "uploads/gallery/videos/original"
-    )
+    video_directory = os.path.abspath(directory)
 
     file_path = os.path.abspath(
         os.path.join(
@@ -73,7 +73,49 @@ def get_original_video(
 
     return FileResponse(
         file_path,
-        media_type="video/mp4"
+        media_type=media_type
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos/original/{filename}"
+)
+def get_original_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        "uploads/gallery/videos/original",
+        filename,
+        "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos/crop/{filename}"
+)
+def get_crop_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        "uploads/gallery/videos/crop",
+        filename,
+        "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos/optimized/{filename}"
+)
+def get_optimized_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        settings.OPTIMIZED_VIDEO_DIR,
+        filename,
+        "video/mp4",
     )
 
 
@@ -94,3 +136,4 @@ app.include_router(permission.router)
 app.include_router(file.router)
 
 app.include_router(video.router)
+

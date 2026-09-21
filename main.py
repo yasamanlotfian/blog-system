@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import FileResponse
 import os
@@ -88,6 +87,102 @@ def get_original_video(
         "uploads/gallery/videos/original",
         filename,
         "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos3/optimized/{filename}"
+)
+def get_optimized_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        "uploads/gallery/videos3/optimized",
+        filename,
+        "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos2/optimized/{filename}"
+)
+def get_optimized_video_v2(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        "uploads/gallery/videos2/optimized",
+        filename,
+        "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos/crop/{filename}"
+)
+def get_crop_video(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    return get_protected_video(
+        "uploads/gallery/videos/crop",
+        filename,
+        "video/mp4",
+    )
+
+
+@app.get(
+    "/uploads/gallery/videos/hls/{video_id}/{filename:path}"
+)
+def get_hls_video(
+    video_id: int,
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    hls_directory = os.path.abspath(
+        os.path.join(
+            "uploads/gallery/videos/hls",
+            str(video_id)
+        )
+    )
+
+    file_path = os.path.abspath(
+        os.path.join(
+            hls_directory,
+            filename
+        )
+    )
+
+    if not file_path.startswith(
+        hls_directory + os.sep
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+
+    if not os.path.isfile(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="HLS file not found"
+        )
+
+    if filename.endswith(".m3u8"):
+        media_type = "application/vnd.apple.mpegurl"
+
+    elif filename.endswith(".ts"):
+        media_type = "video/mp2t"
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid HLS file"
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=media_type
     )
 
 

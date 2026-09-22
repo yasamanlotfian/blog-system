@@ -20,11 +20,6 @@ os.makedirs(
 )
 
 os.makedirs(
-    OPTIMIZED_VIDEO_DIR,
-    exist_ok=True,
-)
-
-os.makedirs(
     UPLOAD_CROP_DIR,
     exist_ok=True,
 )

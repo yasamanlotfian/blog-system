@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 import os
 
@@ -40,6 +40,21 @@ app = FastAPI(
     description="Blog management API for Hair Salon Booking System",
     version="1.0.0"
 )
+
+
+@app.middleware("http")
+async def create_video_directories(
+    request: Request,
+    call_next
+):
+    os.makedirs(
+        settings.OPTIMIZED_VIDEO_DIR,
+        exist_ok=True
+    )
+
+    response = await call_next(request)
+
+    return response
 
 
 def get_protected_video(

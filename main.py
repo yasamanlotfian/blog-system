@@ -51,12 +51,7 @@ async def create_video_directories(
         settings.OPTIMIZED_VIDEO_DIR,
         exist_ok=True
     )
-
-    print(
-        "EXISTS:",
-        os.path.exists(settings.OPTIMIZED_VIDEO_DIR)
-    )
-
+ 
     response = await call_next(request)
 
     return response

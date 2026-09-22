@@ -29,7 +29,7 @@ from routes import (
 )
 
 from auth.dependencies import get_current_user
-from settings import settings
+from settings import Settings
 
 
 Base.metadata.create_all(bind=engine)
@@ -47,11 +47,15 @@ async def create_video_directories(
     request: Request,
     call_next
 ):
+    # هر بار Request ارسال شود، .env دوباره خوانده می‌شود
+    current_settings = Settings()
+
+    # ساخت پوشه optimized بر اساس مقدار فعلی .env
     os.makedirs(
-        settings.OPTIMIZED_VIDEO_DIR,
+        current_settings.OPTIMIZED_VIDEO_DIR,
         exist_ok=True
     )
- 
+
     response = await call_next(request)
 
     return response

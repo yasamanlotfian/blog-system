@@ -16,6 +16,8 @@ from tables.user_permissions import UserPermission
 from tables.file import File
 from tables.video import Video
 
+
+
 from routes import (
     blog,
     gallery,
@@ -25,7 +27,8 @@ from routes import (
     user,
     permission,
     file,
-    video
+    video ,
+    grpc
 )
 
 from auth.dependencies import get_current_user
@@ -222,4 +225,6 @@ app.include_router(permission.router)
 app.include_router(file.router)
 
 app.include_router(video.router)
+
+app.include_router(video_grpc.router)
 

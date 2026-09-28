@@ -28,7 +28,7 @@ from routes import (
     permission,
     file,
     video ,
-    grpc
+      grpc_video
 )
 
 from auth.dependencies import get_current_user
@@ -226,5 +226,5 @@ app.include_router(file.router)
 
 app.include_router(video.router)
 
-app.include_router(video_grpc.router)
+app.include_router(grpc_video.router)
 
